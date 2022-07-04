@@ -1,0 +1,125 @@
+-- load data from excel to Sql using an azure data studio extension
+
+-- putting columns in the Appropriate datatype, changed date in nvarchar(50) datatype to date data type 
+update coviddeath
+set date = CONVERT(nvarchar(50),CONVERT(date,date,105))
+ALTER TABLE coviddeath
+ALTER COLUMN date DATE
+
+update covidvaccination
+set date = CONVERT(nvarchar(50),CONVERT(date,date,105))
+ALTER TABLE covidvaccination
+ALTER COLUMN date DATE
+
+UPDATE coviddeath
+set total_deaths = CONVERT(float,total_deaths)
+
+
+
+
+
+-- Data Exploration
+SELECT * from coviddeath WHERE location = 'united kingdom'
+select * from coviddeath order by 1,2
+
+
+SELECT location,date,total_cases,new_cases,total_deaths,population from coviddeath order by 1,2
+
+--Total cases vs total death
+--for every country how many identified cases Eventually died , percentage of people who died after being infectect
+-- the liklihood of dying if you contract covid
+SELECT location,date, total_cases,total_deaths, cast (total_deaths as decimal)/cast(total_cases as decimal) * 100  as deathpercentage
+from coviddeath  
+WHERE location = 'united kingdom'
+order by deathpercentage desc
+
+-- Total cases vs population
+--shows the percentage of the population got covid
+SELECT location,date, total_cases,population, cast (total_cases as decimal)/cast(population as decimal) * 100  as contractedpercentage
+from coviddeath 
+WHERE location = 'united kingdom'
+order by contractedpercentage ASC
+
+-- countries with highest infection rate compared to population
+
+SELECT location,population, max(total_cases) as highestnumberofcases, max(cast (total_cases as decimal)/cast(population as decimal)) * 100  
+as contractedpercentage
+from coviddeath 
+GROUP by location,population
+--WHERE location = 'united kingdom'
+order by contractedpercentage DESC
+
+
+-- countries with highest deathcount per population 
+SELECT location, max(total_deaths) as highestnumberofdeaths
+from coviddeath 
+WHERE continent is not NULL
+GROUP by location
+--WHERE location = 'united kingdom'
+order by highestnumberofdeaths DESC
+
+-- death percentage per population
+SELECT location, max(total_deaths) as highestnumberofdeaths,population, max(cast (total_deaths as decimal)/cast(population as decimal)) * 100 
+deathpercentage
+from coviddeath 
+WHERE continent is not NULL and total_deaths is not NULL
+GROUP by location,population
+order by deathpercentage DESC
+
+--by continent 
+SELECT continent, max(total_deaths) as highestnumberofdeaths
+from coviddeath 
+WHERE continent is NOT  NULL
+GROUP by continent
+order by highestnumberofdeaths DESC
+
+--Global numbers 
+--looking at the impact, referencing the world 
+SELECT date,SUM(new_cases) dailycases,SUM(new_deaths) dailydeath,SUM(cast(new_deaths as decimal))/SUM(cast(new_cases as decimal))*100 as deathpercentage from coviddeath
+ WHERE continent is NOT NULL
+ GROUP by date
+order by 1,2
+
+SELECT SUM(new_cases) dailycases,SUM(new_deaths) dailydeath,SUM(cast(new_deaths as decimal))/SUM(cast(new_cases as decimal))*100 as deathpercentage from coviddeath
+ WHERE continent is NOT NULL
+order by 1,2
+
+
+-- Vaccinations 
+SELECT dea.continent,dea.location,dea.date,dea.population,vac.new_vaccinations,vac.total_vaccinations
+,SUM(cast(new_vaccinations as numeric)) OVER (partition by vac.location order by dea.location,dea.date) totalvac,
+SUM((cast(new_vaccinations as numeric))/dea.population * 100) OVER (PARTITION by vac.location)
+ from coviddeath dea join covidvaccination vac on dea.location = vac.location and dea.date = vac.date
+where vac.location = 'united kingdom'
+--ORDER by totalvac DESC
+
+SELECT * from covidvaccination
+where total_vaccinations is not null AND new_vaccinations is not NULL
+
+
+
+with popvsvac(continent,location,date,population,Vaccination,totalvac) AS
+(SELECT dea.continent,dea.location,dea.date,dea.population,vac.new_vaccinations,
+SUM(cast(new_vaccinations as numeric)) OVER (partition by vac.location order by dea.location,dea.date) totalvac
+--SUM((cast(new_vaccinations as numeric))/dea.population * 100) OVER (PARTITION by vac.location)
+ from coviddeath dea join covidvaccination vac on dea.location = vac.location and dea.date = vac.date
+where dea.continent is NOT NULL and vac.new_vaccinations is not null)
+SELECT *,(totalvac/population)*100 percentvaccinated
+from popvsvac
+order by percentvaccinated DESC
+--ORDER by totalvac DESC
+
+
+
+-- personal analysis; highest death percentage among all locations
+
+SELECT location,population, max(total_deaths) as highestnumberofdeath,max(total_cases),
+ max(cast (total_deaths as decimal)/cast(total_cases as decimal)) * 100  
+as deathpercentage
+from coviddeath 
+GROUP by location,population
+--WHERE location = 'united kingdom'
+order by deathpercentage DESC
+
+
+
